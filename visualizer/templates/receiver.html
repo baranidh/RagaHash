@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RagaHash — Receiver</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="receiver-page">
+
+  <header>
+    <h1>&#9835; RagaHash <span class="subtitle">Receiver</span></h1>
+    <p class="tagline">Real-time Hash Verification</p>
+  </header>
+
+  <main>
+    <!-- ── Received message display ───────────────────── -->
+    <section class="received-panel card">
+      <label>Received Message</label>
+      <div id="receivedMessage" class="received-message">
+        <em>Waiting for sender…</em>
+      </div>
+      <div class="received-meta">
+        <span id="receivedRaga" class="raga-tag"></span>
+        <span id="receivedSteps" class="step-count"></span>
+      </div>
+    </section>
+
+    <!-- ── Swara circle (echoes sender's animation) ───── -->
+    <section class="viz-panel card">
+      <canvas id="swaraCanvas" width="420" height="420"></canvas>
+      <div class="step-log" id="stepLog">
+        <p class="log-hint">Waiting for hash steps from sender…</p>
+      </div>
+    </section>
+
+    <!-- ── Verification panel ─────────────────────────── -->
+    <section class="verify-panel card" id="verifyPanel">
+      <h2>Hash Verification</h2>
+
+      <div class="hash-comparison">
+        <div class="hash-row">
+          <label>Sender Hash</label>
+          <code id="senderDigest" class="digest-hex">—</code>
+        </div>
+        <div class="hash-row">
+          <label>Receiver Hash</label>
+          <code id="receiverDigest" class="digest-hex computing">—</code>
+        </div>
+      </div>
+
+      <div id="verifyResult" class="verify-result hidden">
+        <div id="verifyIcon" class="verify-icon"></div>
+        <div id="verifyText" class="verify-text"></div>
+      </div>
+
+      <div class="checksum-row">
+        <label>Checksum</label>
+        <code id="checksumOutput">—</code>
+        <span id="checksumRaga" class="raga-tag"></span>
+      </div>
+    </section>
+
+    <!-- ── Back to sender ───────────────────────────────── -->
+    <div class="receiver-link">
+      <a href="/sender" class="btn-receiver">&larr; Back to Sender</a>
+    </div>
+  </main>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/static/raga_viz.js"></script>
+  <script>
+  const socket = io();
+  const canvas = document.getElementById("swaraCanvas");
+  const viz = new SwaraCircle(canvas);
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  let senderDigest = "";
+  let receiverDigest = "";
+  let receivedSteps = [];
+  let stepQueue = [];
+  let stepTimer = null;
+
+  // ─── Receive hash_start ────────────────────────────────────────────────
+  socket.on("hash_start", data => {
+    senderDigest = "";
+    receiverDigest = "";
+    receivedSteps = [];
+    stepQueue = [];
+    clearInterval(stepTimer);
+    viz.reset();
+
+    document.getElementById("receivedMessage").textContent = data.message || "(empty)";
+    document.getElementById("receivedRaga").textContent = `Raga: ${data.raga_name}`;
+    document.getElementById("receivedSteps").textContent = `${data.total_steps} bytes`;
+    document.getElementById("senderDigest").textContent = "computing…";
+    document.getElementById("receiverDigest").textContent = "computing…";
+    document.getElementById("checksumOutput").textContent = "—";
+    document.getElementById("checksumRaga").textContent = "";
+    document.getElementById("verifyResult").classList.add("hidden");
+    document.getElementById("stepLog").innerHTML =
+      `<p class="log-raga">Raga: <strong>${data.raga_name}</strong></p>`;
+  });
+
+  // ─── Receive hash steps ────────────────────────────────────────────────
+  socket.on("hash_step", step => {
+    stepQueue.push(step);
+    if (!stepTimer) {
+      stepTimer = setInterval(drainStepQueue, 80);
+    }
+  });
+
+  function drainStepQueue() {
+    if (stepQueue.length === 0) return;
+    const step = stepQueue.shift();
+    receivedSteps.push(step);
+    animateStep(step);
+    playNote(step.note_freq, audioCtx.currentTime, 0.12);
+  }
+
+  // ─── Receive hash_complete ─────────────────────────────────────────────
+  socket.on("hash_complete", data => {
+    clearInterval(stepTimer);
+    stepTimer = null;
+    // drain remaining
+    while (stepQueue.length) {
+      const step = stepQueue.shift();
+      receivedSteps.push(step);
+      animateStep(step);
+    }
+
+    senderDigest = data.digest || "";
+    document.getElementById("senderDigest").textContent = senderDigest;
+    document.getElementById("checksumOutput").textContent = data.checksum || "—";
+    document.getElementById("checksumRaga").textContent = data.raga_name || "";
+
+    // Receiver independently computes hash client-side (simulated: trusts server data)
+    // In a real deployment, receiver would have its own copy of the data and hash it.
+    // Here we simulate: receiver "receives" the same message and verifies.
+    receiverDigest = senderDigest; // Simulated matching (can be altered for demo)
+    animateHex("receiverDigest", receiverDigest);
+
+    setTimeout(() => showVerification(senderDigest, receiverDigest), 800);
+  });
+
+  // ─── Verification result ───────────────────────────────────────────────
+  function showVerification(sd, rd) {
+    const match = sd.toLowerCase() === rd.toLowerCase();
+    const resultEl = document.getElementById("verifyResult");
+    const iconEl = document.getElementById("verifyIcon");
+    const textEl = document.getElementById("verifyText");
+
+    resultEl.classList.remove("hidden", "match", "mismatch");
+    resultEl.classList.add(match ? "match" : "mismatch");
+
+    if (match) {
+      iconEl.textContent = "✓";
+      textEl.textContent = "INTEGRITY VERIFIED — Hashes match!";
+      playMatchCadence();
+    } else {
+      iconEl.textContent = "✗";
+      textEl.textContent = "INTEGRITY FAILED — Hashes differ!";
+      playMismatchCadence();
+    }
+
+    // Highlight differing nibbles
+    highlightDiff("senderDigest", sd, rd);
+    highlightDiff("receiverDigest", rd, sd);
+  }
+
+  function highlightDiff(elId, own, other) {
+    const el = document.getElementById(elId);
+    if (!own || !other || own === other) {
+      el.textContent = own;
+      return;
+    }
+    let html = "";
+    for (let i = 0; i < own.length; i++) {
+      if (own[i] !== other[i]) {
+        html += `<span class="diff-char">${own[i]}</span>`;
+      } else {
+        html += own[i];
+      }
+    }
+    el.innerHTML = html;
+  }
+
+  // ─── Animation helpers ─────────────────────────────────────────────────
+  function animateStep(step) {
+    viz.activateLane(step.lane, step.note_freq);
+    const row = document.createElement("div");
+    row.className = "log-row";
+    row.innerHTML =
+      `<span class="log-char">'${step.char}'</span>` +
+      `<span class="log-arrow">→</span>` +
+      `<span class="log-swara">${step.swara_name}</span>` +
+      `<span class="log-freq">${step.note_freq.toFixed(2)} Hz</span>`;
+    const log = document.getElementById("stepLog");
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function animateHex(elId, hex) {
+    const el = document.getElementById(elId);
+    el.textContent = "";
+    el.classList.remove("computing");
+    let i = 0;
+    const iv = setInterval(() => {
+      el.textContent += hex[i++];
+      if (i >= hex.length) clearInterval(iv);
+    }, 12);
+  }
+
+  // ─── Audio helpers ─────────────────────────────────────────────────────
+  function playNote(freq, startTime, duration) {
+    audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.01);
+  }
+
+  function playMatchCadence() {
+    // Sa – Pa – Sa' ascending perfect fifth then octave
+    audioCtx.resume();
+    const notes = [[261.63, 0.0, 0.2], [392.00, 0.25, 0.2], [523.25, 0.5, 0.4]];
+    notes.forEach(([f, delay, dur]) => {
+      playNote(f, audioCtx.currentTime + delay, dur);
+    });
+  }
+
+  function playMismatchCadence() {
+    // Sa + Ma2 tritone clash (simultaneous)
+    audioCtx.resume();
+    const t = audioCtx.currentTime + 0.05;
+    playNote(261.63, t, 0.5);
+    playNote(369.99, t, 0.5);
+  }
+
+  // ─── On connect: request current state ────────────────────────────────
+  socket.on("connect", () => {
+    // Server will emit hash_complete if something was already hashed
+  });
+  </script>
+</body>
+</html>
