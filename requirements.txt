@@ -1,0 +1,12 @@
+# RagaHash — Python dependencies
+# Core hash/checksum library: Python stdlib only (no pip deps)
+# Music (WAV generation): Python stdlib only (wave, struct, math)
+
+# Visualizer web app
+flask>=3.0
+flask-socketio>=5.3
+python-socketio>=5.11
+
+# Optional: for running the visualizer in production
+# gunicorn>=21.0
+# eventlet>=0.35  # alternative async mode for Flask-SocketIO
