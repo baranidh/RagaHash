@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RagaHash — Carnatic Music Inspired Hash</title>
+<meta name="description" content="An interactive hash function inspired by the 72 Melakarta raga system of Carnatic music. Hash any message and hear it as a melody."/>
+<meta property="og:title" content="RagaHash — Carnatic Music Inspired Hash"/>
+<meta property="og:description" content="Hash messages using the mathematics of 72 Carnatic Melakarta ragas. Each hash plays as a unique melody."/>
+<style>
+/* ── Palette ─────────────────────────────────── */
+:root{
+  --bg:#1a0a0a;--bg2:#2a1010;--bg3:#3a1818;
+  --gold:#d4af37;--goldd:#9a7a1a;
+  --ivory:#f5f0e0;--ivoryd:#c0b890;
+  --border:#5a2020;--text:#f0e6cc;--textd:#9a8060;
+  --green:#27ae60;--red:#e74c3c;
+  --mono:"Fira Mono","Cascadia Code","Consolas",monospace;
+  --ui:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);min-height:100vh}
+
+/* ── Header ──────────────────────────────────── */
+header{
+  background:linear-gradient(135deg,#3a0808,#1a0a0a 60%,#2a1040);
+  border-bottom:2px solid var(--goldd);padding:1rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem
+}
+header h1{font-size:1.5rem;color:var(--gold);letter-spacing:.04em;text-shadow:0 0 18px rgba(212,175,55,.4)}
+header h1 .sub{color:var(--ivoryd);font-weight:400;font-size:.9rem;margin-left:.35rem}
+.tagline{color:var(--textd);font-size:.73rem;letter-spacing:.1em;text-transform:uppercase;margin-top:.15rem}
+.hdr-right{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+
+/* ── Role tabs ───────────────────────────────── */
+.role-tabs{display:flex;gap:.3rem}
+.role-tab{
+  border:1px solid var(--border);border-radius:6px;
+  background:transparent;color:var(--textd);
+  font-size:.8rem;padding:.3rem .8rem;cursor:pointer;transition:.15s
+}
+.role-tab.active{background:var(--goldd);color:#1a0a0a;border-color:var(--goldd);font-weight:700}
+.role-tab:hover:not(.active){border-color:var(--goldd);color:var(--gold)}
+
+/* ── Main layout ─────────────────────────────── */
+#app{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;padding:.8rem;max-width:1200px;margin:0 auto}
+#app.solo{grid-template-columns:1fr}
+#app.solo .panel.hidden-panel{display:none}
+@media(max-width:750px){#app{grid-template-columns:1fr}}
+
+/* ── Panel ───────────────────────────────────── */
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem;display:flex;flex-direction:column;gap:.7rem}
+.panel-title{font-size:.75rem;color:var(--textd);text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid var(--border);padding-bottom:.4rem}
+
+/* ── Inputs ──────────────────────────────────── */
+.input-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.msg-input{
+  flex:1;min-width:100px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-size:.9rem;padding:.45rem .75rem;outline:none;transition:.15s
+}
+.msg-input:focus{border-color:var(--goldd)}
+.raga-sel{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-size:.78rem;padding:.4rem .5rem;outline:none;cursor:pointer;max-width:170px
+}
+.btn-primary{
+  background:var(--gold);color:#1a0a0a;border:none;border-radius:6px;
+  padding:.45rem 1rem;font-weight:700;font-size:.88rem;cursor:pointer;white-space:nowrap;transition:.15s
+}
+.btn-primary:hover{background:#e8c84a}
+.btn-secondary{
+  background:transparent;border:1px solid var(--goldd);border-radius:6px;
+  color:var(--goldd);padding:.35rem .75rem;font-size:.8rem;cursor:pointer;transition:.15s;text-decoration:none;display:inline-block
+}
+.btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
+.btn-secondary:disabled,.btn-secondary.dis{opacity:.35;pointer-events:none}
+.btn-ghost{
+  background:transparent;border:1px solid var(--border);border-radius:6px;
+  color:var(--textd);padding:.35rem .75rem;font-size:.8rem;cursor:pointer;transition:.15s
+}
+.btn-ghost:hover{border-color:var(--red);color:var(--text)}
+.hint-row{display:flex;justify-content:space-between;font-size:.72rem;color:var(--textd)}
+
+/* ── Viz area ────────────────────────────────── */
+.viz-area{display:flex;gap:.7rem;align-items:flex-start}
+canvas.swara{
+  flex-shrink:0;width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,#2a0808,#0f0404);border:1px solid var(--border)
+}
+.step-log{
+  flex:1;max-height:200px;overflow-y:auto;font-family:var(--mono);font-size:.72rem;
+  background:#120606;border-radius:6px;border:1px solid var(--border);padding:.5rem .6rem
+}
+.log-hint,.log-raga{color:var(--textd);font-style:italic;font-size:.72rem}
+.log-raga strong{color:var(--goldd)}
+.log-row{display:flex;gap:.4rem;align-items:center;padding:.12rem 0;border-bottom:1px solid #2a1010;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.log-ch{color:var(--ivory);min-width:1.8em}.log-arr{color:var(--textd)}.log-sw{color:var(--gold);flex:1}.log-hz{color:var(--textd);font-size:.67rem}
+
+/* ── Output ──────────────────────────────────── */
+.out-block{display:flex;flex-direction:column;gap:.25rem}
+.out-label{font-size:.68rem;color:var(--textd);text-transform:uppercase;letter-spacing:.1em}
+.hex-out{font-family:var(--mono);font-size:.73rem;color:var(--gold);word-break:break-all;letter-spacing:.03em;min-height:1.2em}
+.cs-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.cs-hex{font-family:var(--mono);font-size:.88rem;color:var(--ivory);letter-spacing:.1em}
+.raga-tag{font-size:.7rem;color:var(--goldd);background:#2a1030;border:1px solid #4a2060;border-radius:3px;padding:.1rem .4rem}
+.act-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+
+/* ── Receiver specific ───────────────────────── */
+.recv-msg{font-size:.95rem;color:var(--ivory);font-family:var(--mono);word-break:break-all;min-height:1.2em}
+.recv-msg em{color:var(--textd);font-style:italic}
+.hash-cmp{display:flex;flex-direction:column;gap:.5rem}
+.hash-cmp-row{display:flex;flex-direction:column;gap:.15rem}
+.verify-box{
+  display:flex;align-items:center;gap:.8rem;padding:.6rem 1rem;border-radius:8px;margin:.3rem 0;
+  animation:pop .4s ease;visibility:hidden
+}
+.verify-box.show{visibility:visible}
+@keyframes pop{0%{transform:scale(.9);opacity:0}60%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
+.verify-box.ok{background:#0a2a15;border:2px solid var(--green)}
+.verify-box.fail{background:#2a0a0a;border:2px solid var(--red)}
+.v-icon{font-size:1.6rem;font-weight:900;line-height:1}
+.verify-box.ok .v-icon{color:var(--green)}.verify-box.fail .v-icon{color:var(--red)}
+.v-text{font-size:.9rem;font-weight:700;letter-spacing:.04em}
+.verify-box.ok .v-text{color:var(--green)}.verify-box.fail .v-text{color:var(--red)}
+.diff-ch{color:var(--red);background:#3a0808;border-radius:2px}
+.manual-verify{display:flex;flex-direction:column;gap:.3rem;border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem}
+.manual-verify label{font-size:.7rem;color:var(--textd);text-transform:uppercase;letter-spacing:.08em}
+.paste-row{display:flex;gap:.4rem}
+.paste-input{
+  flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  color:var(--text);font-family:var(--mono);font-size:.72rem;padding:.3rem .5rem;outline:none
+}
+.paste-input:focus{border-color:var(--goldd)}
+
+/* ── Info/link bar ───────────────────────────── */
+.info-bar{
+  text-align:center;padding:.5rem 1rem;font-size:.73rem;color:var(--textd);
+  background:var(--bg2);border-top:1px solid var(--border)
+}
+.info-bar a{color:var(--goldd);text-decoration:none}.info-bar a:hover{color:var(--gold)}
+
+/* ── Scrollbar ───────────────────────────────── */
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0f0404}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>&#9835; RagaHash<span class="sub">256</span></h1>
+    <div class="tagline">Carnatic Melakarta · Hash · Music</div>
+  </div>
+  <div class="hdr-right">
+    <div class="role-tabs" id="roleTabs">
+      <button class="role-tab" onclick="setRole('sender')">Sender</button>
+      <button class="role-tab active" onclick="setRole('both')">Split View</button>
+      <button class="role-tab" onclick="setRole('receiver')">Receiver</button>
+    </div>
+    <a href="https://github.com/baranidh/RagaHash" target="_blank" class="btn-secondary">GitHub</a>
+  </div>
+</header>
+
+<div id="app">
+  <!-- ── Sender Panel ───────────────────────────── -->
+  <div class="panel" id="senderPanel">
+    <div class="panel-title">&#11088; Sender — Hash a Message</div>
+
+    <div class="input-row">
+      <input class="msg-input" id="sMsg" placeholder="Enter your message…" autocomplete="off"/>
+      <select class="raga-sel" id="sRaga" title="Choose a Melakarta raga"></select>
+      <button class="btn-primary" id="hashBtn">Hash It</button>
+    </div>
+    <div class="hint-row">
+      <span id="sRagaLbl" class="raga-tag" style="visibility:hidden">—</span>
+      <span id="sBytes">0 bytes</span>
+    </div>
+
+    <div class="viz-area">
+      <canvas class="swara" id="sCvs" width="200" height="200"></canvas>
+      <div class="step-log" id="sLog"><p class="log-hint">Steps appear here…</p></div>
+    </div>
+
+    <div class="out-block">
+      <div class="out-label">RagaHash-256</div>
+      <div class="hex-out" id="sDigest">—</div>
+    </div>
+    <div class="cs-row">
+      <div class="out-label">Checksum</div>
+      <span class="cs-hex" id="sCs">—</span>
+      <span class="raga-tag" id="sCsRaga"></span>
+    </div>
+    <div class="act-row">
+      <button class="btn-secondary dis" id="playBtn" onclick="playMelody()">&#9654; Play</button>
+      <button class="btn-secondary dis" id="dlBtn">&#8681; WAV</button>
+      <button class="btn-secondary" id="copyBtn" onclick="copyHash()" style="display:none">&#128203; Copy Hash</button>
+      <button class="btn-ghost" onclick="clearSender()">Clear</button>
+    </div>
+  </div>
+
+  <!-- ── Receiver Panel ─────────────────────────── -->
+  <div class="panel" id="receiverPanel">
+    <div class="panel-title">&#128250; Receiver — Verify Integrity</div>
+
+    <div>
+      <div class="out-label">Received Message</div>
+      <div class="recv-msg" id="rMsg"><em>Waiting for sender…</em></div>
+      <div class="hint-row" style="margin-top:.25rem">
+        <span class="raga-tag" id="rRagaLbl"></span>
+        <span id="rSteps" style="font-size:.72rem;color:var(--textd)"></span>
+      </div>
+    </div>
+
+    <div class="viz-area">
+      <canvas class="swara" id="rCvs" width="200" height="200"></canvas>
+      <div class="step-log" id="rLog"><p class="log-hint">Waiting for hash steps…</p></div>
+    </div>
+
+    <div class="hash-cmp">
+      <div class="hash-cmp-row">
+        <div class="out-label">Sender Hash</div>
+        <div class="hex-out" id="rSenderDigest">—</div>
+      </div>
+      <div class="hash-cmp-row">
+        <div class="out-label">Receiver Computed Hash</div>
+        <div class="hex-out" id="rOwnDigest">—</div>
+      </div>
+    </div>
+
+    <div class="verify-box" id="verifyBox">
+      <div class="v-icon" id="vIcon"></div>
+      <div class="v-text" id="vText"></div>
+    </div>
+
+    <div class="cs-row">
+      <div class="out-label">Checksum</div>
+      <span class="cs-hex" id="rCs">—</span>
+      <span class="raga-tag" id="rCsRaga"></span>
+    </div>
+
+    <!-- Manual cross-computer verification -->
+    <div class="manual-verify">
+      <label>Manual verify (paste hash from another computer)</label>
+      <div class="paste-row">
+        <input class="paste-input" id="manualHash" placeholder="Paste 64-char hex hash here…"/>
+        <button class="btn-primary" onclick="manualVerify()">Verify</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="info-bar">
+  <b>Split view</b> — open <a id="senderLink" href="?role=sender" target="_blank">Sender tab</a> &amp;
+  <a id="receiverLink" href="?role=receiver" target="_blank">Receiver tab</a> for a two-endpoint demo
+  &nbsp;·&nbsp;
+  <a href="https://github.com/baranidh/RagaHash/blob/claude/raga-hash-checksum-73i6i/paper/ragahash_paper.md" target="_blank">Read Paper</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/baranidh/RagaHash" target="_blank">Source</a>
+</div>
+
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════════
+// 1. RAGA DATA
+// ════════════════════════════════════════════════════════════════
+const RAGA_NAMES = [
+  "Kanakangi","Ratnangi","Ganamurthi","Vanaspathi","Manavathi","Tanarupi",
+  "Senavathi","Hanumatodi","Dhenuka","Natakapriya","Kokilapriya","Rupavathi",
+  "Gayakapriya","Vakulabharanam","Mayamalavagowla","Chakravakam","Suryakantam",
+  "Hatakambari","Jhankaradhwani","Natabhairavi","Keeravani","Kharaharapriya",
+  "Gourimanohari","Varunapriya","Mararanjani","Charukesi","Sarasangi",
+  "Harikambhoji","Dheerashankarabharanam","Naganandini","Yagapriya","Ragavardhini",
+  "Gangeyabhushani","Vagadheeswari","Shulini","Chalanata","Salagam","Jalarnavam",
+  "Jhalavarali","Navaneetham","Pavani","Raghupriya","Gavambodhi","Bhavapriya",
+  "Shubhapantuvarali","Shadvidhamargini","Suvarnangi","Divyamani","Dhavalambari",
+  "Namanarayani","Kamavardhini","Ramapriya","Gamanashrama","Vishwambhari",
+  "Shamalangi","Shanmukhapriya","Simhendramadhyamam","Hemavathi","Dharmavathi",
+  "Neetimathi","Kantamani","Rishabhapriya","Latangi","Vachaspathi","Mechakalyani",
+  "Chitrambari","Sucharitra","Jyotiswarupini","Dhatuvardani","Nasikabhushani",
+  "Kosalam","Rasikapriya"
+];
+
+const CHROMATIC_FREQ = {
+  0:261.63,1:277.18,2:293.66,3:311.13,4:329.63,
+  5:349.23,6:369.99,7:392.00,8:415.30,9:440.00,
+  10:466.16,11:493.88
+};
+const CHROMATIC_NAMES = [
+  "Sa","Ri1","Ri2/Ga1","Ri3/Ga2","Ga3","Ma1","Ma2","Pa","Dha1","Dha2/Ni1","Dha3/Ni2","Ni3"
+];
+const SWARA_POS_NAMES = ["Sa","Ri","Ga","Ma","Pa","Dha","Ni"];
+
+const RAGA_PRIMES = [
+  2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
+  101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
+  193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
+  293,307,311,313,317,331,337,347,349,353,359
+];
+
+function buildRagas() {
+  const purvanga = [[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]];
+  const uttaranga= [[8,9],[8,10],[8,11],[9,10],[9,11],[10,11]];
+  const mas = [5,6];
+  const ragas = {};
+  let idx = 1;
+  for (const ma of mas) {
+    for (const [ri,ga] of purvanga) {
+      for (const [dha,ni] of uttaranga) {
+        const notes = [0,ri,ga,ma,7,dha,ni].sort((a,b)=>a-b);
+        const intervals = [];
+        for (let i=0;i<6;i++) intervals.push(notes[i+1]-notes[i]);
+        const amsa  = notes[intervals.indexOf(Math.max(...intervals))];
+        const nyasa = notes[3];
+        ragas[idx] = {name:RAGA_NAMES[idx-1], notes, intervals, amsa, nyasa, graha:0};
+        idx++;
+      }
+    }
+  }
+  return ragas;
+}
+const RAGAS = buildRagas();
+
+// ════════════════════════════════════════════════════════════════
+// 2. RAGAHASH-256 — JavaScript (BigInt)
+// ════════════════════════════════════════════════════════════════
+const MASK64 = (1n<<64n)-1n;
+const PHI64  = 0x9e3779b97f4a7c15n;
+
+function rotL64(x, n) {
+  n = ((n%64)+64)%64;
+  if (n===0) return x&MASK64;
+  const bn=BigInt(n);
+  return ((x<<bn)|(x>>(64n-bn)))&MASK64;
+}
+function mixLanes(a,b) {
+  let x=(a^b)&MASK64;
+  x=(x^rotL64(x,17))&MASK64;
+  x=(x+rotL64(b,31))&MASK64;
+  return x&MASK64;
+}
+
+function buildRagaConstants() {
+  const C={};
+  for (const [id,raga] of Object.entries(RAGAS)) {
+    const p=BigInt(RAGA_PRIMES[id-1]);
+    C[id]=raga.notes.map(pos=>{
+      const v=BigInt(Math.floor(CHROMATIC_FREQ[pos]*4294967296));
+      return (v^(p*PHI64))&MASK64;
+    });
+  }
+  return C;
+}
+const RAGA_CONSTANTS = buildRagaConstants();
+
+function chromaToLane(chromaPos, ragaId) {
+  const notes = RAGAS[ragaId].notes;
+  const pos = ((chromaPos%12)+12)%12;
+  if (notes.includes(pos)) return notes.indexOf(pos);
+  for (let off=1;off<12;off++) {
+    const c=((pos-off)%12+12)%12;
+    if (notes.includes(c)) return notes.indexOf(c);
+  }
+  return 0;
+}
+function swaraName(lane, ragaId) {
+  const pos = RAGAS[ragaId].notes[lane];
+  return SWARA_POS_NAMES[lane]+'('+CHROMATIC_NAMES[pos]+')';
+}
+
+class RagaHash {
+  constructor(ragaId=29) {
+    this.ragaId = ragaId;
+    this.raga   = RAGAS[ragaId];
+    this.prime  = BigInt(RAGA_PRIMES[ragaId-1]);
+    this.state  = [...RAGA_CONSTANTS[ragaId]];
+    this.len    = 0n;
+    this._final = null;
+  }
+  update(bytes) {
+    for (const b of bytes) this._byte(b);
+    this.len += BigInt(bytes.length);
+    return this;
+  }
+  _byte(b) {
+    const lane  = chromaToLane(b%12, this.ragaId);
+    const shift = this.raga.intervals[lane%6];
+    this.state[lane] ^= rotL64(this.state[(lane+1)%7], shift);
+    this.state[lane] = (this.state[lane]^((BigInt(b)*this.prime+this.len)&MASK64))&MASK64;
+    const cross=(lane+3)%7;
+    this.state[cross]=mixLanes(this.state[cross],this.state[lane]);
+  }
+  _finalize() {
+    const S=[...this.state];
+    const iv=this.raga.intervals;
+    for (let rnd=0;rnd<4;rnd++) {
+      for (let i=0;i<7;i++) {
+        const sh=iv[(i+rnd)%6];
+        S[i]=(S[i]^rotL64(S[(i+1)%7],sh))&MASK64;
+        S[i]=mixLanes(S[i],S[(i+6)%7]);
+      }
+    }
+    const amsaLane  = this.raga.notes.indexOf(this.raga.amsa);
+    const nyasaLane = this.raga.notes.indexOf(this.raga.nyasa);
+    const aL=amsaLane<0?0:amsaLane;
+    const nL=nyasaLane<0?3:nyasaLane;
+    S[aL]=(S[aL]^(this.len*this.prime))&MASK64;
+    S[nL]=(S[nL]^rotL64(this.len,32))&MASK64;
+    for (let i=0;i<7;i++) S[(i+1)%7]=(S[(i+1)%7]^rotL64(S[i],iv[i%6]))&MASK64;
+    return S;
+  }
+  hexdigest() {
+    if (!this._final) this._final=this._finalize();
+    return this._final.slice(0,4).map(v=>v.toString(16).padStart(16,'0')).join('');
+  }
+}
+
+function ragahash(data, ragaId=29) {
+  const h=new RagaHash(ragaId);
+  h.update(data);
+  return h.hexdigest();
+}
+
+function ragahashSteps(data, ragaId=29) {
+  const h=new RagaHash(ragaId);
+  const steps=[];
+  for (let i=0;i<data.length;i++) {
+    const b=data[i];
+    const lane=chromaToLane(b%12,ragaId);
+    const notePos=RAGAS[ragaId].notes[lane];
+    h.len=BigInt(i);
+    h._byte(b);
+    h.len=BigInt(i+1);
+    steps.push({
+      byte:b, char:(b>=32&&b<127)?String.fromCharCode(b):'.', lane,
+      swaraName:swaraName(lane,ragaId),
+      freq:CHROMATIC_FREQ[notePos],
+      snapshot:h.state.map(v=>v.toString(16).padStart(16,'0')),
+      ragaName:RAGAS[ragaId].name, idx:i
+    });
+  }
+  return steps;
+}
+
+// ── RagaChecksum-32 ──────────────────────────────────────────────
+const MASK32=0xFFFFFFFF;
+function rotL32(x,n){n=((n%32)+32)%32;if(!n)return x&MASK32;return((x<<n)|(x>>>(32-n)))&MASK32}
+
+function ragachecksum(data, ragaId=null) {
+  const rid = ragaId ?? ((data.length%72)+1);
+  const raga=RAGAS[rid]; const p=RAGA_PRIMES[rid-1];
+  let acc=(raga.notes.reduce((a,n)=>a+n,0)*p)&MASK32;
+  for (let i=0;i<data.length;i++) {
+    const b=data[i];
+    const lane=chromaToLane(b%12,rid);
+    const interval=raga.intervals[lane%6];
+    acc=(rotL32(acc,interval)^((b*p)&MASK32))&MASK32;
+    if((i+1)%7===0) acc=(acc^((i*p)&MASK32))&MASK32;
+  }
+  acc=(acc^((data.length*p)&MASK32))&MASK32;
+  const amsaPos=raga.amsa%32;
+  acc=rotL32(acc,amsaPos);
+  return {checksum:acc, hex:acc.toString(16).padStart(8,'0'), ragaId:rid, ragaName:raga.name};
+}
+
+// ════════════════════════════════════════════════════════════════
+// 3. MUSIC — WAV generation + Web Audio playback
+// ════════════════════════════════════════════════════════════════
+let audioCtx=null;
+function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+
+function scheduleNote(freq,startTime,dur=0.16){
+  const ctx=getAudioCtx();
+  const osc=ctx.createOscillator();
+  const gain=ctx.createGain();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(freq,startTime);
+  // kampita-style micro-oscillation
+  osc.frequency.setValueAtTime(freq+3,startTime+dur*.3);
+  osc.frequency.setValueAtTime(freq-3,startTime+dur*.6);
+  osc.frequency.setValueAtTime(freq,  startTime+dur*.85);
+  gain.gain.setValueAtTime(0,startTime);
+  gain.gain.linearRampToValueAtTime(.22,startTime+.015);
+  gain.gain.exponentialRampToValueAtTime(.001,startTime+dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(startTime); osc.stop(startTime+dur+.01);
+}
+
+function playMatchCadence(){
+  const ctx=getAudioCtx(); ctx.resume();
+  const t=ctx.currentTime+.05;
+  [[261.63,0],[392.00,.25],[523.25,.5]].forEach(([f,d])=>scheduleNote(f,t+d,.25));
+}
+function playMismatchCadence(){
+  const ctx=getAudioCtx(); ctx.resume();
+  const t=ctx.currentTime+.05;
+  scheduleNote(261.63,t,.5); scheduleNote(369.99,t,.5);
+}
+
+// Build WAV bytes from steps
+function stepsToWavBlob(steps,bpm=108){
+  const SR=44100,amp=.28;
+  const noteDur=60/bpm*.5;
+  // coalesce consecutive same notes
+  const coalesced=[];
+  for(const s of steps){
+    if(coalesced.length&&Math.abs(coalesced[coalesced.length-1][0]-s.freq)<.1)
+      coalesced[coalesced.length-1][1]++;
+    else coalesced.push([s.freq,1]);
+  }
+  const allSamples=[];
+  const gapLen=Math.floor(SR*noteDur*.18);
+  for(const[freq,cnt] of coalesced){
+    const dur=Math.min(noteDur*cnt,noteDur*3);
+    const n=Math.floor(SR*dur);
+    for(let i=0;i<n;i++){
+      const t=i/n;
+      const env=t<.05?t/.05:t>.85?(1-t)/.15:1;
+      const fmod=freq+4*Math.sin(2*Math.PI*5.5*i/SR);
+      allSamples.push(amp*env*Math.sin(2*Math.PI*fmod*(i/SR)*SR/SR*2*Math.PI));
+    }
+    for(let i=0;i<gapLen;i++) allSamples.push(0);
+  }
+  // PCM 16-bit WAV
+  const nSamp=allSamples.length;
+  const buf=new ArrayBuffer(44+nSamp*2);
+  const dv=new DataView(buf);
+  function ws(off,str){for(let i=0;i<str.length;i++)dv.setUint8(off+i,str.charCodeAt(i));}
+  ws(0,'RIFF'); dv.setUint32(4,36+nSamp*2,true); ws(8,'WAVE');
+  ws(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,SR,true); dv.setUint32(28,SR*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  ws(36,'data'); dv.setUint32(40,nSamp*2,true);
+  for(let i=0;i<nSamp;i++){
+    const v=Math.max(-1,Math.min(1,allSamples[i]));
+    dv.setInt16(44+i*2,Math.round(v*32767),true);
+  }
+  return new Blob([buf],{type:'audio/wav'});
+}
+
+// ════════════════════════════════════════════════════════════════
+// 4. SWARA CIRCLE CANVAS
+// ════════════════════════════════════════════════════════════════
+class SwaraCircle {
+  constructor(canvas){
+    this.c=canvas; this.ctx=canvas.getContext('2d');
+    this.w=canvas.width; this.h=canvas.height;
+    this.cx=this.w/2; this.cy=this.h/2;
+    this.R=Math.min(this.w,this.h)*.35;
+    this.lanes=Array.from({length:7},(_,i)=>({
+      label:SWARA_POS_NAMES[i],
+      angle:(i/7)*2*Math.PI-Math.PI/2,
+      glow:0, freq:0
+    }));
+    this._af=null; this._draw();
+  }
+  activateLane(lane,freq){
+    if(lane<0||lane>6)return;
+    this.lanes[lane].glow=1; this.lanes[lane].freq=freq;
+    this._run();
+  }
+  reset(){this.lanes.forEach(l=>{l.glow=0;l.freq=0;}); this._draw();}
+  _run(){
+    if(this._af)return;
+    const tick=()=>{
+      this.lanes.forEach(l=>{if(l.glow>0){l.glow-=.03;if(l.glow<0)l.glow=0;}});
+      this._draw();
+      if(this.lanes.some(l=>l.glow>.01)) this._af=requestAnimationFrame(tick);
+      else this._af=null;
+    };
+    this._af=requestAnimationFrame(tick);
+  }
+  _draw(){
+    const{ctx:c,cx,cy,w,h,R}=this;
+    c.clearRect(0,0,w,h);
+    const bg=c.createRadialGradient(cx,cy,5,cx,cy,R*1.3);
+    bg.addColorStop(0,'#2a0808'); bg.addColorStop(1,'#0f0404');
+    c.fillStyle=bg; c.beginPath(); c.arc(cx,cy,R*1.45,0,2*Math.PI); c.fill();
+    c.strokeStyle='#5a2020'; c.lineWidth=1;
+    c.beginPath(); c.arc(cx,cy,R*1.35,0,2*Math.PI); c.stroke();
+    // Sa-Pa connection line
+    const L0=this.lanes[0],L4=this.lanes[4];
+    const gSaPa=Math.max(L0.glow,L4.glow);
+    c.strokeStyle=`rgba(212,175,55,${.06+gSaPa*.35})`; c.lineWidth=1.5+gSaPa*2;
+    c.beginPath();
+    c.moveTo(cx+R*Math.cos(L0.angle),cy+R*Math.sin(L0.angle));
+    c.lineTo(cx+R*Math.cos(L4.angle),cy+R*Math.sin(L4.angle));
+    c.stroke();
+    // Spokes + nodes
+    this.lanes.forEach(ln=>{
+      const x=cx+R*Math.cos(ln.angle), y=cy+R*Math.sin(ln.angle);
+      c.strokeStyle=`rgba(90,32,32,${.25+ln.glow*.45})`; c.lineWidth=1;
+      c.beginPath(); c.moveTo(cx,cy); c.lineTo(x,y); c.stroke();
+      this._node(x,y,ln);
+    });
+    // Centre
+    const cg=Math.max(...this.lanes.map(l=>l.glow));
+    c.fillStyle=`rgba(212,175,55,${.15+cg*.5})`;
+    c.beginPath(); c.arc(cx,cy,5+cg*4,0,2*Math.PI); c.fill();
+  }
+  _node(x,y,ln){
+    const c=this.ctx,g=ln.glow,r=18;
+    if(g>.02){
+      const h=c.createRadialGradient(x,y,r*.4,x,y,r*2);
+      h.addColorStop(0,`rgba(212,175,55,${g*.55})`);
+      h.addColorStop(1,'rgba(212,175,55,0)');
+      c.fillStyle=h; c.beginPath(); c.arc(x,y,r*2.3,0,2*Math.PI); c.fill();
+    }
+    const ng=c.createRadialGradient(x-r*.25,y-r*.25,1,x,y,r);
+    if(g>.05){ng.addColorStop(0,`rgba(255,240,120,${.55+g*.4})`);ng.addColorStop(1,`rgba(180,100,10,${.25+g*.5})`);}
+    else{ng.addColorStop(0,'#3a1818');ng.addColorStop(1,'#1a0808');}
+    c.fillStyle=ng; c.beginPath(); c.arc(x,y,r,0,2*Math.PI); c.fill();
+    c.strokeStyle=g>.05?`rgba(212,175,55,${.35+g*.6})`:'#5a2020';
+    c.lineWidth=1.5+g*1.5; c.stroke();
+    c.fillStyle=g>.05?`rgba(255,245,180,${.65+g*.3})`:'rgba(192,160,100,.55)';
+    c.font=`bold ${11+g*2}px sans-serif`; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText(ln.label,x,y);
+    if(g>.15&&ln.freq>0){
+      c.fillStyle=`rgba(180,140,60,${g*.8})`; c.font='8px monospace';
+      c.fillText(ln.freq.toFixed(0)+'Hz',x,y+r+8);
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 5. SENDER LOGIC
+// ════════════════════════════════════════════════════════════════
+let sViz, lastSteps=[], lastDigest='', lastRagaId=29;
+
+function initSender(){
+  sViz=new SwaraCircle(document.getElementById('sCvs'));
+  // Populate raga selector
+  const sel=document.getElementById('sRaga');
+  for(const[id,r] of Object.entries(RAGAS)){
+    const o=document.createElement('option');
+    o.value=id; o.textContent=`${id}. ${r.name}`;
+    if(+id===29)o.selected=true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change',()=>{
+    const lbl=sel.options[sel.selectedIndex]?.textContent||'';
+    const tag=document.getElementById('sRagaLbl');
+    tag.textContent=lbl; tag.style.visibility='visible';
+  });
+  sel.dispatchEvent(new Event('change'));
+  document.getElementById('sMsg').addEventListener('input',e=>{
+    const bytes=new TextEncoder().encode(e.target.value);
+    document.getElementById('sBytes').textContent=bytes.length+' bytes';
+  });
+  document.getElementById('hashBtn').addEventListener('click',doHash);
+  document.getElementById('sMsg').addEventListener('keydown',e=>{if(e.key==='Enter')doHash();});
+}
+
+function doHash(){
+  const msg=document.getElementById('sMsg').value;
+  const ragaId=+document.getElementById('sRaga').value||29;
+  const raw=new TextEncoder().encode(msg);
+
+  // Reset UI
+  document.getElementById('sDigest').textContent='computing…';
+  document.getElementById('sCs').textContent='…';
+  document.getElementById('sCsRaga').textContent='';
+  document.getElementById('sLog').innerHTML='';
+  sViz.reset();
+
+  const steps=ragahashSteps(raw,ragaId);
+  const digest=ragahash(raw,ragaId);
+  const cs=ragachecksum(raw,ragaId);
+
+  lastSteps=steps; lastDigest=digest; lastRagaId=ragaId;
+
+  // Animate step log + canvas
+  document.getElementById('sLog').innerHTML=
+    `<p class="log-raga">Raga: <strong>${RAGAS[ragaId].name}</strong> · ${steps.length} bytes</p>`;
+
+  let delay=0;
+  const noteDur=.16, gap=.04;
+  const ctx=getAudioCtx(); ctx.resume();
+  let t=ctx.currentTime+.08;
+
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    setTimeout(()=>{
+      sViz.activateLane(s.lane,s.freq);
+      appendLogRow('sLog',s);
+    },delay);
+    scheduleNote(s.freq,t+i*(noteDur+gap),noteDur);
+    delay+=60;
+  }
+
+  setTimeout(()=>{
+    animHex('sDigest',digest);
+    document.getElementById('sCs').textContent=cs.hex;
+    document.getElementById('sCsRaga').textContent=cs.ragaName;
+    document.getElementById('playBtn').classList.remove('dis');
+    document.getElementById('dlBtn').classList.remove('dis');
+    document.getElementById('copyBtn').style.display='';
+    enableWavDownload(steps);
+  }, delay+100);
+
+  // Broadcast to receiver (same-browser cross-tab)
+  broadcast({type:'hash_result',msg,digest,cs,ragaId,steps:steps.map(s=>({lane:s.lane,freq:s.freq,char:s.char,swaraName:s.swaraName}))});
+}
+
+function appendLogRow(logId,s){
+  const log=document.getElementById(logId);
+  const div=document.createElement('div'); div.className='log-row';
+  div.innerHTML=`<span class="log-ch">'${s.char}'</span><span class="log-arr">→</span><span class="log-sw">${s.swaraName}</span><span class="log-hz">${s.freq.toFixed(2)}Hz</span>`;
+  log.appendChild(div); log.scrollTop=log.scrollHeight;
+}
+
+function animHex(elId,hex){
+  const el=document.getElementById(elId); el.textContent='';
+  let i=0; const iv=setInterval(()=>{el.textContent+=hex[i++];if(i>=hex.length)clearInterval(iv);},10);
+}
+
+function playMelody(){
+  if(!lastSteps.length)return;
+  const ctx=getAudioCtx(); ctx.resume();
+  let t=ctx.currentTime+.06;
+  const nd=.16,gap=.04;
+  lastSteps.forEach((s,i)=>scheduleNote(s.freq,t+i*(nd+gap),nd));
+}
+
+function enableWavDownload(steps){
+  const btn=document.getElementById('dlBtn');
+  const blob=stepsToWavBlob(steps);
+  const url=URL.createObjectURL(blob);
+  btn.onclick=()=>{
+    const a=document.createElement('a');
+    a.href=url; a.download='ragahash_melody.wav'; a.click();
+  };
+}
+
+function copyHash(){
+  if(!lastDigest)return;
+  navigator.clipboard.writeText(lastDigest).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    const orig=btn.textContent; btn.textContent='✓ Copied!';
+    setTimeout(()=>btn.textContent=orig,1500);
+  });
+}
+
+function clearSender(){
+  document.getElementById('sMsg').value='';
+  document.getElementById('sDigest').textContent='—';
+  document.getElementById('sCs').textContent='—';
+  document.getElementById('sCsRaga').textContent='';
+  document.getElementById('sBytes').textContent='0 bytes';
+  document.getElementById('sLog').innerHTML='<p class="log-hint">Steps appear here…</p>';
+  document.getElementById('playBtn').classList.add('dis');
+  document.getElementById('dlBtn').classList.add('dis');
+  document.getElementById('copyBtn').style.display='none';
+  lastSteps=[]; lastDigest=''; sViz.reset();
+}
+
+// ════════════════════════════════════════════════════════════════
+// 6. RECEIVER LOGIC
+// ════════════════════════════════════════════════════════════════
+let rViz;
+
+function initReceiver(){
+  rViz=new SwaraCircle(document.getElementById('rCvs'));
+}
+
+function showHashResult({msg,digest,cs,ragaId,steps}){
+  document.getElementById('rMsg').textContent=msg||(msg===''?'(empty)':'…');
+  document.getElementById('rRagaLbl').textContent='Raga: '+(RAGAS[ragaId]?.name||'');
+  document.getElementById('rSteps').textContent=steps.length+' bytes';
+  document.getElementById('rLog').innerHTML=
+    `<p class="log-raga">Raga: <strong>${RAGAS[ragaId]?.name}</strong> · ${steps.length} bytes</p>`;
+  document.getElementById('rSenderDigest').textContent='computing…';
+  document.getElementById('rOwnDigest').textContent='computing…';
+  document.getElementById('rCs').textContent='…';
+  document.getElementById('rCsRaga').textContent='';
+  const vb=document.getElementById('verifyBox');
+  vb.classList.remove('show','ok','fail');
+  rViz.reset();
+
+  let delay=0;
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    setTimeout(()=>{
+      rViz.activateLane(s.lane,s.freq);
+      const log=document.getElementById('rLog');
+      const div=document.createElement('div'); div.className='log-row';
+      div.innerHTML=`<span class="log-ch">'${s.char}'</span><span class="log-arr">→</span><span class="log-sw">${s.swaraName}</span><span class="log-hz">${s.freq.toFixed(2)}Hz</span>`;
+      log.appendChild(div); log.scrollTop=log.scrollHeight;
+    },delay);
+    delay+=60;
+  }
+  setTimeout(()=>{
+    // Receiver independently re-computes the hash from the message
+    const raw=new TextEncoder().encode(msg);
+    const ownDigest=ragahash(raw,ragaId);
+    const ownCs=ragachecksum(raw,ragaId);
+    animHex('rSenderDigest',digest);
+    animHex('rOwnDigest',ownDigest);
+    document.getElementById('rCs').textContent=ownCs.hex;
+    document.getElementById('rCsRaga').textContent=ownCs.ragaName;
+    setTimeout(()=>showVerify(digest,ownDigest),400);
+  },delay+100);
+}
+
+function showVerify(sd,rd){
+  const match=sd.toLowerCase()===rd.toLowerCase();
+  const vb=document.getElementById('verifyBox');
+  document.getElementById('vIcon').textContent=match?'✓':'✗';
+  document.getElementById('vText').textContent=match
+    ?'INTEGRITY VERIFIED — Hashes match!'
+    :'INTEGRITY FAILED — Hashes differ!';
+  vb.className='verify-box show '+(match?'ok':'fail');
+  highlightDiff('rSenderDigest',sd,rd);
+  highlightDiff('rOwnDigest',rd,sd);
+  if(match) playMatchCadence(); else playMismatchCadence();
+}
+
+function highlightDiff(elId,own,other){
+  const el=document.getElementById(elId);
+  if(!own||!other||own===other){el.textContent=own;return;}
+  let html='';
+  for(let i=0;i<own.length;i++)
+    html+=own[i]!==other[i]?`<span class="diff-ch">${own[i]}</span>`:own[i];
+  el.innerHTML=html;
+}
+
+function manualVerify(){
+  const pasted=document.getElementById('manualHash').value.trim().toLowerCase();
+  const ownDigest=document.getElementById('rOwnDigest').textContent;
+  if(!ownDigest||ownDigest==='—'||ownDigest==='computing…'){
+    alert('No hash computed yet on receiver side.'); return;
+  }
+  if(pasted.length!==64){alert('Expected a 64-character hex string.');return;}
+  showVerify(pasted,ownDigest);
+}
+
+// ════════════════════════════════════════════════════════════════
+// 7. BROADCASTCHANNEL (cross-tab sync, same browser/origin)
+// ════════════════════════════════════════════════════════════════
+let bc=null;
+function initBroadcast(){
+  if(!window.BroadcastChannel)return;
+  bc=new BroadcastChannel('ragahash-v1');
+  bc.onmessage=e=>handleBroadcast(e.data);
+}
+function broadcast(msg){if(bc)bc.postMessage(msg);}
+function handleBroadcast(data){
+  if(data.type==='hash_result') showHashResult(data);
+}
+
+// ════════════════════════════════════════════════════════════════
+// 8. URL ROUTING + INIT
+// ════════════════════════════════════════════════════════════════
+let currentRole='both';
+
+function setRole(role){
+  currentRole=role;
+  const app=document.getElementById('app');
+  const sp=document.getElementById('senderPanel');
+  const rp=document.getElementById('receiverPanel');
+  const tabs=document.querySelectorAll('.role-tab');
+  tabs.forEach((t,i)=>t.classList.toggle('active',['sender','both','receiver'][i]===role));
+  app.classList.toggle('solo',role!=='both');
+  sp.classList.toggle('hidden-panel',role==='receiver');
+  rp.classList.toggle('hidden-panel',role==='sender');
+  // Update URL without reload
+  const url=new URL(location.href);
+  if(role==='both')url.searchParams.delete('role');
+  else url.searchParams.set('role',role);
+  history.replaceState(null,'',url);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  initSender();
+  initReceiver();
+  initBroadcast();
+
+  // Read URL param
+  const param=new URLSearchParams(location.search).get('role');
+  if(param==='sender'||param==='receiver') setRole(param);
+  else setRole('both');
+
+  // If opened as receiver-only, show a note
+  if(param==='receiver'){
+    document.getElementById('rLog').innerHTML=
+      '<p class="log-hint">Waiting for sender to hash a message in another tab…</p>';
+  }
+});
+</script>
+</body>
+</html>

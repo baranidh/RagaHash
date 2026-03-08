@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RagaHash — Sender</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="sender-page">
+
+  <header>
+    <h1>&#9835; RagaHash <span class="subtitle">Sender</span></h1>
+    <p class="tagline">Carnatic Music-Inspired Hash Function</p>
+  </header>
+
+  <main>
+    <!-- ── Input panel ─────────────────────────────────── -->
+    <section class="input-panel card">
+      <div class="input-row">
+        <input type="text" id="messageInput" placeholder="Enter your message…" autofocus />
+        <select id="ragaSelect" title="Choose a Melakarta raga"></select>
+        <button id="hashBtn" class="btn-primary">Hash It</button>
+      </div>
+      <div class="input-hints">
+        <span id="ragaLabel" class="raga-label"></span>
+        <span id="charCount" class="char-count">0 bytes</span>
+      </div>
+    </section>
+
+    <!-- ── Swara circle visualisation ─────────────────── -->
+    <section class="viz-panel card">
+      <canvas id="swaraCanvas" width="420" height="420"></canvas>
+      <div class="step-log" id="stepLog">
+        <p class="log-hint">Hash steps will appear here…</p>
+      </div>
+    </section>
+
+    <!-- ── Hash output ─────────────────────────────────── -->
+    <section class="output-panel card">
+      <div class="output-row">
+        <div class="output-item">
+          <label>RagaHash-256</label>
+          <code id="digestOutput" class="digest-hex">—</code>
+        </div>
+        <div class="output-item">
+          <label>RagaChecksum-32</label>
+          <code id="checksumOutput" class="checksum-hex">—</code>
+          <span id="checksumRaga" class="raga-tag"></span>
+        </div>
+      </div>
+      <div class="action-row">
+        <button id="playBtn" class="btn-secondary" disabled>&#9654; Play Melody</button>
+        <a id="downloadBtn" class="btn-secondary disabled" href="/api/melody" download="ragahash_melody.wav">&#8681; Download WAV</a>
+        <button id="clearBtn" class="btn-ghost">Clear</button>
+      </div>
+    </section>
+
+    <!-- ── Receiver link ────────────────────────────────── -->
+    <div class="receiver-link">
+      <a href="/receiver" target="_blank" class="btn-receiver">
+        Open Receiver &rarr;
+      </a>
+      <p>Open the Receiver in another tab to see live hash verification.</p>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/static/raga_viz.js"></script>
+  <script>
+  // ─── Page initialisation ───────────────────────────────────────────────
+  const socket = io();
+  const canvas = document.getElementById("swaraCanvas");
+  const viz = new SwaraCircle(canvas);
+
+  // Populate raga selector
+  fetch("/api/ragas")
+    .then(r => r.json())
+    .then(ragas => {
+      const sel = document.getElementById("ragaSelect");
+      ragas.forEach(r => {
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = `${r.id}. ${r.name}`;
+        if (r.id === 29) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      updateRagaLabel();
+    });
+
+  function updateRagaLabel() {
+    const sel = document.getElementById("ragaSelect");
+    const txt = sel.options[sel.selectedIndex]?.textContent || "";
+    document.getElementById("ragaLabel").textContent = txt ? `Raga: ${txt}` : "";
+  }
+
+  document.getElementById("ragaSelect").addEventListener("change", updateRagaLabel);
+  document.getElementById("messageInput").addEventListener("input", e => {
+    document.getElementById("charCount").textContent =
+      `${new TextEncoder().encode(e.target.value).length} bytes`;
+  });
+
+  // ─── Hash button ───────────────────────────────────────────────────────
+  document.getElementById("hashBtn").addEventListener("click", doHash);
+  document.getElementById("messageInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") doHash();
+  });
+
+  async function doHash() {
+    const message = document.getElementById("messageInput").value;
+    const raga_id = parseInt(document.getElementById("ragaSelect").value || 29);
+
+    // Reset UI
+    document.getElementById("digestOutput").textContent = "computing…";
+    document.getElementById("checksumOutput").textContent = "…";
+    document.getElementById("stepLog").innerHTML = "";
+    viz.reset();
+
+    const resp = await fetch("/api/hash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, raga_id }),
+    });
+    const data = await resp.json();
+
+    document.getElementById("digestOutput").textContent = data.digest || "—";
+    document.getElementById("checksumOutput").textContent = data.checksum || "—";
+    document.getElementById("checksumRaga").textContent = data.raga_name || "";
+    document.getElementById("playBtn").disabled = false;
+    document.getElementById("downloadBtn").classList.remove("disabled");
+  }
+
+  // ─── WebSocket step events ─────────────────────────────────────────────
+  const stepLog = document.getElementById("stepLog");
+  let pendingSteps = [];
+  let isPlaying = false;
+
+  socket.on("hash_start", d => {
+    pendingSteps = [];
+    isPlaying = false;
+    stepLog.innerHTML = `<p class="log-raga">Raga: <strong>${d.raga_name}</strong> &bull; ${d.total_steps} bytes</p>`;
+    viz.reset();
+  });
+
+  socket.on("hash_step", step => {
+    pendingSteps.push(step);
+    animateStep(step);
+  });
+
+  socket.on("hash_complete", data => {
+    // Animate hex output char by char
+    animateHex("digestOutput", data.digest || "");
+  });
+
+  function animateStep(step) {
+    viz.activateLane(step.lane, step.note_freq);
+    const row = document.createElement("div");
+    row.className = "log-row";
+    row.innerHTML =
+      `<span class="log-char">'${step.char}'</span>` +
+      `<span class="log-arrow">→</span>` +
+      `<span class="log-swara">${step.swara_name}</span>` +
+      `<span class="log-freq">${step.note_freq.toFixed(2)} Hz</span>`;
+    stepLog.appendChild(row);
+    stepLog.scrollTop = stepLog.scrollHeight;
+  }
+
+  function animateHex(elId, hex) {
+    const el = document.getElementById(elId);
+    el.textContent = "";
+    let i = 0;
+    const interval = setInterval(() => {
+      el.textContent += hex[i];
+      i++;
+      if (i >= hex.length) clearInterval(interval);
+    }, 12);
+  }
+
+  // ─── Play melody button ────────────────────────────────────────────────
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  document.getElementById("playBtn").addEventListener("click", async () => {
+    if (pendingSteps.length === 0) return;
+    await audioCtx.resume();
+    viz.reset();
+    let t = audioCtx.currentTime + 0.05;
+    const noteDur = 0.18;
+    const gap = 0.04;
+    pendingSteps.forEach((step, i) => {
+      scheduleNote(step.note_freq, t + i * (noteDur + gap), noteDur);
+      setTimeout(() => viz.activateLane(step.lane, step.note_freq), i * (noteDur + gap) * 1000);
+    });
+  });
+
+  function scheduleNote(freq, startTime, duration) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, startTime);
+    // Slight kampita (vibrato) — inspired by Carnatic ornament style
+    osc.frequency.setValueAtTime(freq + 3, startTime + duration * 0.3);
+    osc.frequency.setValueAtTime(freq - 3, startTime + duration * 0.6);
+    osc.frequency.setValueAtTime(freq, startTime + duration * 0.85);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.01);
+  }
+
+  // ─── Clear button ──────────────────────────────────────────────────────
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    document.getElementById("messageInput").value = "";
+    document.getElementById("digestOutput").textContent = "—";
+    document.getElementById("checksumOutput").textContent = "—";
+    document.getElementById("checksumRaga").textContent = "";
+    document.getElementById("charCount").textContent = "0 bytes";
+    document.getElementById("stepLog").innerHTML = '<p class="log-hint">Hash steps will appear here…</p>';
+    document.getElementById("playBtn").disabled = true;
+    document.getElementById("downloadBtn").classList.add("disabled");
+    pendingSteps = [];
+    viz.reset();
+  });
+  </script>
+</body>
+</html>
