@@ -697,7 +697,10 @@ function doHash(){
   }, delay+100);
 
   // Broadcast to receiver (same-browser cross-tab)
-  broadcast({type:'hash_result',msg,digest,cs,ragaId,steps:steps.map(s=>({lane:s.lane,freq:s.freq,char:s.char,swaraName:s.swaraName}))});
+  const bcastData={type:'hash_result',msg,digest,cs,ragaId,steps:steps.map(s=>({lane:s.lane,freq:s.freq,char:s.char,swaraName:s.swaraName}))};
+  broadcast(bcastData);
+  // BroadcastChannel doesn't deliver to the same window — update in-page receiver directly
+  if(currentRole==='both') showHashResult(bcastData);
 }
 
 function appendLogRow(logId,s){
