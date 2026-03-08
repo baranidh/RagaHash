@@ -356,9 +356,13 @@ function chromaToLane(chromaPos, ragaId) {
   const notes = RAGAS[ragaId].notes;
   const pos = ((chromaPos%12)+12)%12;
   if (notes.includes(pos)) return notes.indexOf(pos);
-  for (let off=1;off<12;off++) {
-    const c=((pos-off)%12+12)%12;
-    if (notes.includes(c)) return notes.indexOf(c);
+  // Bidirectional nearest-note search so bytes spread across all 7 lanes
+  // (downward-only caused most bytes to collapse to Sa)
+  for (let off=1;off<7;off++) {
+    const lower=((pos-off)%12+12)%12;
+    if (notes.includes(lower)) return notes.indexOf(lower);
+    const upper=(pos+off)%12;
+    if (notes.includes(upper)) return notes.indexOf(upper);
   }
   return 0;
 }

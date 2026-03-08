@@ -184,20 +184,22 @@ RAGA_CONSTANTS = _build_raga_constants()
 def chromatic_to_lane(chromatic_pos: int, raga_id: int) -> int:
     """
     Map a chromatic position to the swara lane index (0-6) within the raga.
-    If the chromatic position is not in the raga, map to the nearest lower note.
+    If the chromatic position is not in the raga, map to the nearest note
+    (bidirectional search — lower then upper at each distance) so that bytes
+    are distributed evenly across all 7 lanes rather than collapsing to Sa.
     """
     notes = MELAKARTA_RAGAS[raga_id]["notes"]
-    # Find nearest note in raga (modulo octave)
     pos = chromatic_pos % 12
-    # Direct match
     if pos in notes:
         return notes.index(pos)
-    # Find closest lower note (wrap around Sa if needed)
-    for offset in range(1, 12):
-        candidate = (pos - offset) % 12
-        if candidate in notes:
-            return notes.index(candidate)
-    return 0  # fallback to Sa
+    for offset in range(1, 7):
+        lower = (pos - offset) % 12
+        if lower in notes:
+            return notes.index(lower)
+        upper = (pos + offset) % 12
+        if upper in notes:
+            return notes.index(upper)
+    return 0  # fallback (unreachable for valid ragas)
 
 
 def get_swara_name(lane_idx: int, raga_id: int) -> str:
