@@ -520,7 +520,7 @@ function stepsToWavBlob(steps,bpm=108){
       const t=i/n;
       const env=t<.05?t/.05:t>.85?(1-t)/.15:1;
       const fmod=freq+4*Math.sin(2*Math.PI*5.5*i/SR);
-      allSamples.push(amp*env*Math.sin(2*Math.PI*fmod*(i/SR)*SR/SR*2*Math.PI));
+      allSamples.push(amp*env*Math.sin(2*Math.PI*fmod*i/SR));
     }
     for(let i=0;i<gapLen;i++) allSamples.push(0);
   }
@@ -733,7 +733,8 @@ function enableWavDownload(steps){
   const url=URL.createObjectURL(blob);
   btn.onclick=()=>{
     const a=document.createElement('a');
-    a.href=url; a.download='ragahash_melody.wav'; a.click();
+    a.href=url; a.download='ragahash_melody.wav';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 }
 
