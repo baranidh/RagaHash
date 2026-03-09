@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "ragahash"
+version = "0.1.0"
+description = "Carnatic Melakarta-inspired hash function and checksum library"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+  { name = "baranidh" },
+]
+keywords = [
+  "hash", "checksum", "carnatic", "music", "melakarta", "raga",
+  "cryptography", "data-integrity", "audio",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Education",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Security :: Cryptography",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = []  # pure stdlib
+
+[project.optional-dependencies]
+visualizer = ["flask>=3.0", "flask-socketio>=5.3"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+ragahash = "ragahash.__main__:main"
+
+[project.urls]
+Homepage   = "https://github.com/baranidh/RagaHash"
+Repository = "https://github.com/baranidh/RagaHash"
+Paper      = "https://github.com/baranidh/RagaHash/blob/main/paper/ragahash_paper.md"
+Demo       = "https://baranidh.github.io/RagaHash/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

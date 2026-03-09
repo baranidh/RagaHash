@@ -105,7 +105,7 @@ class RagaHash:
             raise RuntimeError("Cannot update a finalized RagaHash.")
         for b in data:
             self._process_byte(b)
-        self._length += len(data)
+            self._length += 1  # increment per byte so _length == position inside _process_byte
         return self
 
     def _process_byte(self, b: int) -> None:

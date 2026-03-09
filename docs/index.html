@@ -113,9 +113,9 @@ canvas.swara{
 .hash-cmp-row{display:flex;flex-direction:column;gap:.15rem}
 .verify-box{
   display:flex;align-items:center;gap:.8rem;padding:.6rem 1rem;border-radius:8px;margin:.3rem 0;
-  animation:pop .4s ease;visibility:hidden
+  animation:none;opacity:0;pointer-events:none;transition:opacity .1s
 }
-.verify-box.show{visibility:visible}
+.verify-box.show{animation:pop .4s ease;opacity:1;pointer-events:auto}
 @keyframes pop{0%{transform:scale(.9);opacity:0}60%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 .verify-box.ok{background:#0a2a15;border:2px solid var(--green)}
 .verify-box.fail{background:#2a0a0a;border:2px solid var(--red)}
@@ -242,9 +242,10 @@ canvas.swara{
     <div class="manual-verify">
       <label>Manual verify (paste hash from another computer)</label>
       <div class="paste-row">
-        <input class="paste-input" id="manualHash" placeholder="Paste 64-char hex hash here…"/>
+        <input class="paste-input" id="manualHash" placeholder="Paste 64-char hex hash here…" oninput="document.getElementById('manualErr').textContent=''"/>
         <button class="btn-primary" onclick="manualVerify()">Verify</button>
       </div>
+      <span id="manualErr" style="font-size:.72rem;color:var(--red);min-height:1em"></span>
     </div>
   </div>
 </div>
@@ -831,12 +832,15 @@ function highlightDiff(elId,own,other){
 }
 
 function manualVerify(){
+  const err=document.getElementById('manualErr');
   const pasted=document.getElementById('manualHash').value.trim().toLowerCase();
   const ownDigest=document.getElementById('rOwnDigest').textContent;
   if(!ownDigest||ownDigest==='—'||ownDigest==='computing…'){
-    alert('No hash computed yet on receiver side.'); return;
+    err.textContent='No hash computed yet — hash a message first.'; return;
   }
-  if(pasted.length!==64){alert('Expected a 64-character hex string.');return;}
+  if(pasted.length!==64){err.textContent='Expected a 64-character hex string.'; return;}
+  if(!/^[0-9a-f]{64}$/.test(pasted)){err.textContent='Invalid hex characters.'; return;}
+  err.textContent='';
   showVerify(pasted,ownDigest);
 }
 

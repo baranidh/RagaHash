@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install pytest
+
+      - name: Run test suite
+        run: python -m pytest tests/ -v --tb=short
+
+  cli-smoke:
+    name: CLI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Hash a string
+        run: python -m ragahash "Hello, Carnatic world!"
+
+      - name: Hash via stdin
+        run: echo -n "stdin test" | python -m ragahash -
+
+      - name: List ragas
+        run: python -m ragahash --list-ragas
+
+      - name: JSON output
+        run: python -m ragahash --json "test" | python -m json.tool
+
+      - name: File hash
+        run: python -m ragahash --file README.md
+
+      - name: Bare output (for scripting)
+        run: |
+          digest=$(python -m ragahash --bare "hello")
+          echo "Digest: $digest"
+          [ ${#digest} -eq 64 ] || (echo "Wrong length!" && exit 1)
+
+      - name: Manifest a directory
+        run: python -m ragahash --manifest ragahash/
+
+      - name: WAV export
+        run: |
+          python -m ragahash --wav /tmp/test_melody.wav "Hello"
+          [ -f /tmp/test_melody.wav ] || (echo "WAV not created!" && exit 1)
+          echo "WAV size: $(wc -c < /tmp/test_melody.wav) bytes"
